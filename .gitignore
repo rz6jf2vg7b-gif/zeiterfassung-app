@@ -1,0 +1,7 @@
+# Projektlisten gehoeren NICHT ins Repo.
+# Bis zum 25.08.2026 lagen sie hier und wurden von GitHub Pages oeffentlich
+# ausgeliefert: 612 MVV-Projekte mit Auftragsnummer, Auftraggeber und
+# Projektleiter, dazu 157 kreativLABOR42-Kundenprojekte. Sie liegen jetzt
+# ausschliesslich in OneDrive (Apps/Stundenerfassung/kataloge) und auf den
+# Geraeten; die App holt sie ueber Graph, siehe js/sync/kataloge.js.
+/data/

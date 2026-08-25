@@ -1,0 +1,84 @@
+/* Design-Tokens — die einzige Stelle mit Farbwerten.
+   Monochrom, bewusst ohne Akzentfarbe: Hierarchie entsteht über Schriftgewicht,
+   Größe und Haarlinien, nicht über Buntheit. Das ist die Sprache technischer
+   Zeichnungen — und genau darum wirkt es architektonisch statt nach App. */
+:root {
+  color-scheme: light dark;
+
+  /* Flächen — Weiß auf Weiß, getrennt nur durch Linien */
+  --grund: #ffffff;
+  --flaeche: #ffffff;
+  --flaeche-2: #f4f4f4;
+  --flaeche-3: #ebebeb;
+
+  /* Linien — das eigentliche Gestaltungsmittel */
+  --linie: #e3e3e3;
+  --linie-stark: #c4c4c4;
+  --linie-tinte: #111111;
+
+  /* Schrift */
+  --text: #111111;
+  --text-2: #6a6a6a;
+  --text-3: #9c9c9c;
+
+  /* "Tinte" ersetzt die frühere Akzentfarbe: Schwarz trägt, Weiß kontrastiert */
+  --tinte: #111111;
+  --tinte-kontrast: #ffffff;
+  --tinte-flaeche: #f0f0f0;
+
+  /* Zustände bleiben monochrom — unterschieden über Fläche und Gewicht */
+  --hinweis-flaeche: #111111;
+  --hinweis-text: #ffffff;
+  --gefahr: #111111;
+
+  /* Form — Haarlinien und fast keine Rundung */
+  --haar: 1px;
+  --r-s: 2px;
+  --r-m: 3px;
+  --r-voll: 999px;
+
+  /* Abstände — 4er-Raster */
+  --a1: 4px;  --a2: 8px;  --a3: 12px; --a4: 16px;
+  --a5: 20px; --a6: 24px; --a8: 32px; --a10: 40px; --a12: 48px;
+
+  /* Typografie */
+  --schrift: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+  --zahlen: "SF Mono", ui-monospace, Menlo, monospace;
+  --sperrung: .10em;   /* Laufweite der Kleinversalien-Beschriftungen */
+
+  --nav-hoehe: 52px;
+
+  /* Sichere Ränder des Geräts. Bewusst über Variablen statt direkt über env():
+     env() lässt sich nicht überschreiben, eine Variable schon — dadurch sind
+     die Ränder eines iPhone im Testbrowser nachstellbar und damit prüfbar.
+     Genau daran ist die erste Fehlersuche gescheitert. */
+  --rand-oben: env(safe-area-inset-top, 0px);
+  --rand-unten: env(safe-area-inset-bottom, 0px);
+  --rand-links: env(safe-area-inset-left, 0px);
+  --rand-rechts: env(safe-area-inset-right, 0px);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --grund: #0a0a0a;
+    --flaeche: #0a0a0a;
+    --flaeche-2: #161616;
+    --flaeche-3: #202020;
+
+    --linie: #262626;
+    --linie-stark: #3d3d3d;
+    --linie-tinte: #f2f2f2;
+
+    --text: #f2f2f2;
+    --text-2: #a0a0a0;
+    --text-3: #6b6b6b;
+
+    --tinte: #f2f2f2;
+    --tinte-kontrast: #0a0a0a;
+    --tinte-flaeche: #1c1c1c;
+
+    --hinweis-flaeche: #f2f2f2;
+    --hinweis-text: #0a0a0a;
+    --gefahr: #f2f2f2;
+  }
+}
