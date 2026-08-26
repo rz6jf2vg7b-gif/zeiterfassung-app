@@ -1,8 +1,10 @@
 // Projektsuche — der Kern des ursprünglichen Wunsches:
 // "ich tippe UW, dann filtert es nur die UW-Projekte, Buchstabe für Buchstabe".
-import { el, icon } from "../core/dom.js";
+import { el, icon, hinweis } from "../core/dom.js";
 import * as katalog from "../data/catalog.js";
+import * as store from "../core/store.js";
 import { zustand } from "../core/store.js";
+import * as repo from "../data/repo.js";
 
 export function projektpicker(container, { bereich = null, beiWahl, autofokus = true }) {
   const feld = el("input", {
@@ -51,13 +53,38 @@ export function projektpicker(container, { bereich = null, beiWahl, autofokus = 
 
     const treffer = katalog.suche(text, { bereich });
     if (!treffer.length) {
-      liste.appendChild(el("div", { class: "leer" }, [
-        el("p", { text: `Kein Projekt zu „${text}“.` }),
-        el("p", { class: "leer-hinweis", text: "Eigene Projekte legst du unter Mehr → Projekte an." }),
-      ]));
+      liste.appendChild(nichtsGefunden(text));
       return;
     }
     treffer.forEach((p) => liste.appendChild(zeile(p)));
+  }
+
+  /** Sackgasse vermeiden: Nicht jedes Projekt steht in untermStrich oder der
+   *  MVV-Liste -- ein Angebot etwa hat noch keine Auftragsnummer und taucht
+   *  dort gar nicht auf. Statt auf "Mehr → Projekte" zu verweisen, wird es
+   *  hier angelegt und die Buchung laeuft sofort weiter. */
+  function nichtsGefunden(text) {
+    const anlegen = async (id) => {
+      const neu = repo.neuesProjekt({ bereich: id, name: text });
+      await repo.speichereProjekt(neu);
+      await store.projekteNachladen();
+      const angelegt = katalog.projekt(neu.id);
+      hinweis(`„${text}“ angelegt.`, "gut");
+      beiWahl(angelegt || { ...neu, sammelposten: false });
+    };
+
+    const ziele = bereich ? [katalog.BEREICHE.find((b) => b.id === bereich)] : katalog.BEREICHE;
+    return el("div", { class: "leer" }, [
+      el("p", { text: `Kein Projekt zu „${text}“.` }),
+      el("p", { class: "leer-hinweis", text: ziele.length === 1
+        ? "Als eigenes Projekt anlegen und direkt darauf buchen:"
+        : "Als eigenes Projekt anlegen — in welchem Bereich?" }),
+      el("div", { class: "knopfzeile" }, ziele.map((b) =>
+        el("button", { class: "knopf" + (ziele.length === 1 ? " haupt" : ""),
+          text: ziele.length === 1 ? "Anlegen und buchen" : b.kurz,
+          onclick: () => anlegen(b.id) })
+      )),
+    ]);
   }
 
   function abschnitt(titel, projekte) {

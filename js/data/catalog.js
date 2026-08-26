@@ -24,6 +24,25 @@ export const bereichKurz = (id) => BEREICHE.find((b) => b.id === id)?.kurz || id
 
 export const KATALOG_BEREICH = { ustrich: "kl", mvv: "mvv" };
 
+/** Vergleichsform für die Suche.
+ *
+ *  Zwei Dinge kosten sonst Treffer, beide in Steffens Bestand belegt:
+ *  Umlaute und ß werden mal so, mal so geschrieben — „Mika/Ruediger_Hassloch"
+ *  und „Laqué_Haßloch" meinen denselben Ort, wurden aber von je einer
+ *  Schreibweise gefunden und von der anderen nicht. Und Trennzeichen: in
+ *  „FEN-13-SCH0026" ist das Kürzel mit Bindestrichen verklebt, „fen 13 sch"
+ *  fand es dadurch nicht.
+ *
+ *  Auf dem Telefon zählt das doppelt — ein ß tippt niemand freiwillig. */
+export function normalisiere(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/ß/g, "ss")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")   // é -> e, ü -> u
+    .replace(/[^a-z0-9]+/g, " ")                         // _ - / . als Trenner
+    .trim();
+}
+
 let katalog = [];
 let nachId = new Map();
 let stand = { ustrich: null, mvv: null };
@@ -56,8 +75,11 @@ export async function laden() {
       favorit: !!x.favorit,
       versteckt: !!x.versteckt,
       geoText: x.adresse || p.adresse || p.geoHinweis || p.ort || null,
-      suchtext: [p.nr, p.kuerzel, p.name, p.ort, p.kreis, p.auftrag, p.auftraggeber]
-        .filter(Boolean).join(" ").toLowerCase(),
+      suchtext: normalisiere([p.nr, p.kuerzel, p.name, p.ort, p.kreis, p.auftrag, p.auftraggeber]
+        .filter(Boolean).join(" ")),
+      nrN: normalisiere(p.nr),
+      kuerzelN: normalisiere(p.kuerzel),
+      nameN: normalisiere(p.name),
     };
   });
 
@@ -87,7 +109,8 @@ export function fehlendesProjektText(projektId) {
  *  Mehrere Wörter wirken als UND. Sortierung nach Treffergüte, damit das
  *  Gemeinte oben steht und nicht der zufällig erste Namenstreffer. */
 export function suche(text, { bereich = null, nurAktive = false, ohneSammelposten = false, limit = 60 } = {}) {
-  const worte = (text || "").toLowerCase().trim().split(/\s+/).filter(Boolean);
+  const anfrage = normalisiere(text);
+  const worte = anfrage.split(/\s+/).filter(Boolean);
   let basis = katalog.filter((p) => !p.versteckt);
   if (bereich) basis = basis.filter((p) => p.bereich === bereich);
   if (nurAktive) basis = basis.filter((p) => p.aktiv);
@@ -104,21 +127,23 @@ export function suche(text, { bereich = null, nurAktive = false, ohneSammelposte
   const bewertet = [];
   for (const p of basis) {
     if (!worte.every((w) => p.suchtext.includes(w))) continue;
-    bewertet.push({ p, punkte: guete(p, worte[0]) + (p.favorit ? 40 : 0) + (p.aktiv ? 15 : 0) });
+    bewertet.push({ p, punkte: guete(p, anfrage, worte[0]) + (p.favorit ? 40 : 0) + (p.aktiv ? 15 : 0) });
   }
   bewertet.sort((a, b) => b.punkte - a.punkte || a.p.name.localeCompare(b.p.name));
   return bewertet.slice(0, limit).map((x) => x.p);
 }
 
-function guete(p, wort) {
-  const k = (p.kuerzel || "").toLowerCase();
-  const n = String(p.nr || "").toLowerCase();
-  const name = p.name.toLowerCase();
-  if (k === wort) return 100;
-  if (n === wort) return 95;
-  if (k.startsWith(wort)) return 80;
-  if (n.startsWith(wort)) return 70;
-  if (name.startsWith(wort)) return 60;
-  if (name.includes(wort)) return 40;
+/** Treffergüte. Die volle Anfrage wird zuerst geprüft, damit "26/245" als
+ *  Projektnummer erkannt bleibt — normalisiert zerfällt sie in zwei Wörter,
+ *  und ein Vergleich nur mit dem ersten Wort ("26") würde jeden Jahrgang
+ *  gleich gut bewerten. */
+function guete(p, anfrage, wort) {
+  if (p.kuerzelN && p.kuerzelN === anfrage) return 100;
+  if (p.nrN && p.nrN === anfrage) return 95;
+  if (p.kuerzelN && p.kuerzelN === wort) return 92;
+  if (p.kuerzelN && p.kuerzelN.startsWith(wort)) return 80;
+  if (p.nrN && p.nrN.startsWith(wort)) return 70;
+  if (p.nameN.startsWith(wort)) return 60;
+  if (p.nameN.includes(wort)) return 40;
   return 10;
 }
