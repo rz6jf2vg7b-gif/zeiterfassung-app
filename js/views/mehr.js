@@ -209,6 +209,23 @@ function kontoBlock() {
   const e = store.zustand.einstellungen;
   const kinder = [];
 
+  // Die Anmeldung ist verfallen und die stille Erneuerung hat nicht gegriffen —
+  // die Microsoft-Sitzung im Browser besteht nicht mehr. Das ist kein Fehler,
+  // sondern verlangt einmal Tippen.
+  if (microsoft.anmeldungNoetig()) {
+    return el("div", { class: "karte block warnung" }, [
+      el("div", { class: "block-kopf" }, [
+        el("div", {}, [
+          el("h2", { text: "Microsoft-Konto" }),
+          el("p", { class: "block-neben", text: "Anmeldung abgelaufen" }),
+        ]),
+      ]),
+      el("p", { class: "block-text", text: "Microsoft lässt Web-Apps höchstens 24 Stunden angemeldet bleiben. Sonst verlängert die App das im Hintergrund; diesmal war auch die Microsoft-Sitzung im Browser abgelaufen." }),
+      el("p", { class: "block-text", text: "Deine Buchungen sind vollständig auf diesem Gerät. Sie gehen erst nach der Anmeldung wieder zu den anderen Geräten." }),
+      el("button", { class: "knopf haupt", text: "Neu anmelden", onclick: () => microsoft.anmelden() }),
+    ]);
+  }
+
   if (!microsoft.angemeldet()) {
     kinder.push(
       el("p", { class: "block-text", text: "Ohne Anmeldung liegen die Buchungen nur auf diesem Gerät. Safari darf den Speicher von Web-Apps nach längerer Nichtnutzung löschen." }),

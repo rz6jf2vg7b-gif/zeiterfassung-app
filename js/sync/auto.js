@@ -26,6 +26,9 @@ let fingerabdruck = null;
 let takt = null;
 
 function aktiv() {
+  // Bei abgelaufener Anmeldung ruht der Abgleich: jeder Versuch liefe in
+  // denselben Fehler und wuerde ihn alle zehn Minuten wiederholen.
+  if (microsoft.anmeldungNoetig()) return false;
   return store.zustand.einstellungen.autoAbgleich !== false && microsoft.angemeldet();
 }
 

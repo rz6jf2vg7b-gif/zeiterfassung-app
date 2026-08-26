@@ -52,12 +52,24 @@ async function start() {
   // Kommen wir gerade von der Microsoft-Anmeldung zurueck?
   const rueckkehr = await microsoft.rueckkehrPruefen();
 
+  // Entra gibt Einzelseitenanwendungen ein Aktualisierungs-Token, das nach
+  // genau 24 Stunden verfaellt und sich nicht verlaengern laesst. Kurz davor
+  // wird es hier still erneuert -- eine Umleitung mit prompt=none, die bei
+  // bestehender Microsoft-Sitzung sofort zurueckkommt. Vor dem ersten
+  // Zeichnen, damit hoechstens ein Flackern sichtbar wird und keine
+  // aufgebaute Ansicht wieder verschwindet.
+  if (!rueckkehr && microsoft.erneuerungFaellig() && await microsoft.stillErneuern()) return;
+
   await store.starten();
   router.zeige(router.startAnsicht(), { verlauf: false });
 
   if (rueckkehr) {
-    if (rueckkehr.ok) hinweis("Mit OneDrive verbunden.", "gut");
-    else {
+    // Die stille Erneuerung laeuft taeglich -- sie darf sich nicht melden.
+    if (rueckkehr.ok) { if (!rueckkehr.still) hinweis("Mit OneDrive verbunden.", "gut"); }
+    else if (rueckkehr.still) {
+      hinweis("Die Anmeldung bei Microsoft ist abgelaufen — unter „Mehr“ neu anmelden.", "warnung");
+      router.zeige("mehr");
+    } else {
       hinweis(rueckkehr.meldung, "warnung");
       router.zeige("mehr");
     }
