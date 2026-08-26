@@ -88,7 +88,13 @@ export function abschlussHinweis() {
         + (a.restTage >= 0
             ? `Bis zum Buchungsschluss am ${datumDeutsch(a.bis)} sind es noch ${a.restTage} Tage.`
             : `Der Buchungsschluss war am ${datumDeutsch(a.bis)}.`) }),
-      el("span", { class: "text-knopf", text: "Offene Tage ansehen" }),
+      // War bis 26.08.2026 ein span ohne Wirkung -- sah wie ein Knopf aus,
+      // tat aber nichts. Fuehrt jetzt zur Liste der offenen Tage.
+      el("button", { class: "text-knopf", text: "Offene Tage ansehen",
+        onclick: async () => {
+          const { offeneTageBlatt } = await import("./tagesblatt.js");
+          offeneTageBlatt(a.offen);
+        } }),
     ]);
   }
   return null;

@@ -23,7 +23,16 @@ export function sheet({ titel, inhalt, aktionen = [], beimSchliessen = null }) {
     [griff, kopf, koerper, fuss].filter(Boolean));
   const schleier = el("div", { class: "sheet-schleier" }, [blatt]);
 
-  schleier.addEventListener("click", (ev) => { if (ev.target === schleier) schliesse(); });
+  // Klick auf den Schleier schliesst -- aber nur, wenn er wirklich daneben
+  // ging. Wird das angeklickte Element noch waehrend der Ereignisverarbeitung
+  // aus dem DOM genommen (im Tagesblatt zeichnet der Pfeil den Inhalt neu),
+  // haengt der Browser das Ereignis an den naechsten noch vorhandenen
+  // Vorfahren -- und das ist der Schleier. Das Blatt schloss sich dadurch beim
+  // Blaettern selbst. Der Merker wird gesetzt, solange das Blatt im Pfad liegt.
+  blatt.addEventListener("click", (ev) => { ev.__imBlatt = true; });
+  schleier.addEventListener("click", (ev) => {
+    if (!ev.__imBlatt && ev.target === schleier) schliesse();
+  });
 
   // Wisch nach unten zum Schliessen — nur am Griff und am Kopf, damit
   // Scrollen im Koerper davon unberuehrt bleibt.

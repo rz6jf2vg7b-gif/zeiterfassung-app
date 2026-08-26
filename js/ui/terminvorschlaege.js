@@ -2,6 +2,7 @@
 // Für einen Bauleitertag ist das der größte Zeitgewinn: der Kalender weiß
 // bereits, wann was war. Wird auf „Heute" und im Tagesblatt des Kalenders
 // verwendet — nachtragen soll an jedem Datum möglich sein, nicht nur heute.
+// Der Rückruf nachBuchung haelt das Tagesblatt offen, siehe ui/tagesblatt.js.
 import { el, hinweis } from "../core/dom.js";
 import * as store from "../core/store.js";
 import * as fmt from "../core/fmt.js";
@@ -35,7 +36,7 @@ export const speicherLeeren = () => zwischenspeicher.clear();
 /** Hängt den Abschnitt an, sofern es unverbrauchte Termine gibt.
  *  Vorschläge, für die schon eine Buchung mit derselben Anfangszeit existiert,
  *  fallen weg — sonst bietet die App an, was längst gebucht ist. */
-export async function terminvorschlaege(wurzel, datum, { titel = "Aus dem Kalender", neuLaden = false } = {}) {
+export async function terminvorschlaege(wurzel, datum, { titel = "Aus dem Kalender", neuLaden = false, nachBuchung = null } = {}) {
   if (!kalenderAktiv()) return;
 
   const termine = await termineHolen(datum, { neuLaden });
@@ -51,16 +52,17 @@ export async function terminvorschlaege(wurzel, datum, { titel = "Aus dem Kalend
       el("h2", { text: titel }),
       el("button", { class: "text-knopf", text: "Neu laden", onclick: async () => {
         zwischenspeicher.delete(datum);
+        if (nachBuchung) { nachBuchung(); return; }   // im Tagesblatt: dort neu zeichnen
         const r = await import("../core/router.js");
         r.neuZeichnen();
       } }),
     ]),
-    el("div", { class: "karten" }, offen.map((t) => zeile(t, datum)))
+    el("div", { class: "karten" }, offen.map((t) => zeile(t, datum, nachBuchung)))
   );
 }
 
-function zeile(termin, datum) {
-  return el("button", { class: "karte eintrag", onclick: () => buchen(termin, datum) }, [
+function zeile(termin, datum, nachBuchung) {
+  return el("button", { class: "karte eintrag", onclick: () => buchen(termin, datum, nachBuchung) }, [
     el("span", { class: "eintrag-marke", text: termin.von }),
     el("div", { class: "eintrag-text" }, [
       el("div", { class: "eintrag-name", text: termin.titel }),
@@ -74,7 +76,7 @@ function zeile(termin, datum) {
   ]);
 }
 
-function buchen(termin, datum) {
+function buchen(termin, datum, nachBuchung = null) {
   const koerper = el("div");
   sheet({ titel: "Termin buchen auf …", inhalt: koerper });
 
@@ -100,6 +102,10 @@ function buchen(termin, datum) {
       });
       schliesse();
       hinweis(`${fmt.dauer(termin.minuten)} auf ${fmt.projektKurz(p)} gebucht.`, "gut");
+      // Aus dem Tagesblatt heraus: denselben Tag wieder aufschlagen, damit
+      // sich mehrere Termine hintereinander buchen lassen, ohne jedes Mal
+      // neu zu oeffnen.
+      if (nachBuchung) nachBuchung();
     },
   });
 }

@@ -4,11 +4,8 @@ import { el, icon } from "../core/dom.js";
 import * as store from "../core/store.js";
 import * as fmt from "../core/fmt.js";
 import { heute, tageImMonat, alsDatumString } from "../core/time.js";
-import { eintragsliste } from "../ui/eintragsliste.js";
-import { erfassen } from "../ui/erfassen.js";
 import { abwesenheitEintragen } from "../ui/abwesenheit.js";
-import { sheet } from "../ui/sheet.js";
-import { terminvorschlaege } from "../ui/terminvorschlaege.js";
+import { tagesblatt } from "../ui/tagesblatt.js";
 import { kontoBereiche, bereichWerte } from "../core/konten.js";
 import * as router from "../core/router.js";
 
@@ -131,7 +128,7 @@ function gitter(jahr, monat, heuteStr, summeProTag, abwesenheit, feiertage, luec
     const zelle = el("button", {
       class: klassen.join(" "),
       title: feiertag ? feiertag.name : (abw ? fmt.kategorieLabel(abw) : ""),
-      onclick: () => tagOeffnen(datum, feiertag),
+      onclick: () => tagesblatt(datum),
     }, [
       zeichen ? el("span", { class: "tag-zeichen", text: zeichen }) : null,
       el("span", { class: "tag-zahl", text: String(tag) }),
@@ -160,40 +157,3 @@ function legende(anzahlLuecken) {
   return el("p", { class: "legende", text: teile.join(" ") });
 }
 
-function tagOeffnen(datum, feiertag) {
-  // Termine dieses Tages nachladen -- Nachtragen soll an jedem Datum gehen,
-  // nicht nur an "heute".
-  const vorschlagsbereich = el("div");
-  terminvorschlaege(vorschlagsbereich, datum, { titel: "Termine an diesem Tag" });
-
-  const eintraege = store.zustand.eintraege
-    .filter((e) => e.datum === datum)
-    .sort((a, b) => (a.von || "zz").localeCompare(b.von || "zz"));
-  const summe = eintraege.reduce((s, e) => s + e.minuten, 0);
-
-  const koerper = el("div", {}, [
-    feiertag ? el("div", { class: "datenzeile" }, [
-      el("span", { class: "datenname", text: "Feiertag" }),
-      el("span", { class: "datenwert", text: feiertag.name }),
-    ]) : null,
-    summe ? el("div", { class: "tagessumme" }, [
-      el("span", { class: "vorschau-wert", text: fmt.dauer(summe) }),
-      el("span", { class: "vorschau-neben",
-        text: `${fmt.dezimal(summe)} Std · ${fmt.anzahl(eintraege.length, "Eintrag", "Einträge")}` }),
-    ]) : null,
-    eintragsliste(eintraege, { leerText: "An diesem Tag ist nichts erfasst." }),
-    vorschlagsbereich,
-    el("div", { class: "knopfzeile" }, [
-      el("button", { class: "knopf flach", text: "Abwesenheit eintragen",
-        onclick: () => abwesenheitEintragen({ datum }) }),
-    ]),
-  ].filter(Boolean));
-
-  sheet({
-    titel: fmt.datumLang(datum),
-    inhalt: koerper,
-    aktionen: [
-      el("button", { class: "knopf haupt", text: "Zeit eintragen", onclick: () => erfassen({ datum }) }),
-    ],
-  });
-}

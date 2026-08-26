@@ -13,6 +13,7 @@ import { sheet, schliesse } from "../ui/sheet.js";
 import { projektpicker } from "../ui/projektpicker.js";
 import { saldoZeile, abschlussHinweis } from "../ui/konten.js";
 import { terminvorschlaege } from "../ui/terminvorschlaege.js";
+import { tagesblatt } from "../ui/tagesblatt.js";
 
 let uhrTakt = null;
 
@@ -61,7 +62,12 @@ export function zeichneHeute(wurzel) {
   wurzel.append(
     el("div", { class: "abschnitt-titel" }, [
       el("h2", { text: "Erfasst heute" }),
-      el("button", { class: "text-knopf", text: "Nachtragen", onclick: () => erfassen({ datum: heuteStr }) }),
+      el("div", { class: "titel-knoepfe" }, [
+        // Von hier aus laesst sich durch die Tage blaettern -- Nachtragen
+        // passiert selten am selben Abend.
+        el("button", { class: "text-knopf", text: "Andere Tage", onclick: () => tagesblatt(heuteStr) }),
+        el("button", { class: "text-knopf", text: "Nachtragen", onclick: () => erfassen({ datum: heuteStr }) }),
+      ]),
     ]),
     eintragsliste(heutige, { leerText: "Heute noch nichts erfasst." })
   );

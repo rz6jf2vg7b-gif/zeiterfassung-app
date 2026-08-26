@@ -62,6 +62,9 @@ button { cursor: pointer; border: none; background: none; padding: 0; }
   padding-bottom: var(--a2); border-bottom: var(--haar) solid var(--linie-tinte);
 }
 .abschnitt-titel h2 { margin: 0; color: var(--text); }
+/* Zwei Textknoepfe rechts im Abschnittstitel -- sie sollen nebeneinander
+   stehen und nicht die Ueberschrift zusammenquetschen. */
+.titel-knoepfe { display: flex; align-items: center; gap: var(--a4); flex: 0 0 auto; }
 
 .text-knopf { font-size: 13px; font-weight: 600; letter-spacing: .02em; color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
 
