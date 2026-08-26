@@ -5,7 +5,7 @@ import * as store from "./core/store.js";
 import * as microsoft from "./sync/microsoft.js";
 import * as auto from "./sync/auto.js";
 import { erfassen } from "./ui/erfassen.js";
-import { zeichneHeute } from "./views/heute.js";
+import { zeichneHeute, zurueckAufHeute } from "./views/heute.js";
 import { zeichneKalender } from "./views/kalender.js";
 import { zeichneProjekte } from "./views/projekte.js";
 import { zeichneAuswertung } from "./views/auswertung.js";
@@ -35,7 +35,9 @@ ANSICHTEN.forEach((a, i) => {
   }
   const knopf = el("button", {
     class: "nav-knopf", dataset: { ansicht: a.id },
-    onclick: () => router.zeige(a.id),
+    // Der Reiter "Heute" heisst heute -- wer geblaettert hat, landet mit einem
+    // Tipper wieder am heutigen Tag statt auf dem zuletzt angesehenen.
+    onclick: () => { if (a.id === "heute") zurueckAufHeute(); router.zeige(a.id); },
   }, [icon(a.icon, 22), el("span", { text: a.label })]);
   navKnoepfe.set(a.id, knopf);
   navLeiste.appendChild(knopf);

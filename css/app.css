@@ -354,6 +354,9 @@ textarea.feld { resize: vertical; min-height: 46px; line-height: 1.45; }
 
 .monatswechsel { display: flex; align-items: center; justify-content: space-between; padding-bottom: var(--a3); margin-bottom: var(--a3); border-bottom: var(--haar) solid var(--linie-tinte); }
 .monatsname { font-size: 15px; font-weight: 650; letter-spacing: -.01em; padding: var(--a1) var(--a2); }
+/* Im Tag oben laesst der folgende Block (Timer, Kennzahlen) schon eine
+   eigene Linie sehen -- zwei uebereinander wirken wie ein Fehler. */
+.monatswechsel.ohne-linie { border-bottom: 0; padding-bottom: 0; margin-bottom: var(--a2); }
 
 .kalendergitter { display: grid; grid-template-columns: repeat(7, 1fr); gap: var(--haar); background: var(--linie); border: var(--haar) solid var(--linie); }
 .kalender-wochentag { text-align: center; padding: var(--a2) 0; background: var(--grund); font-size: 9.5px; }

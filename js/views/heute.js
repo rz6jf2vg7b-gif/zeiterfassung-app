@@ -1,11 +1,19 @@
-// Heute — die Ansicht, die morgens und abends offen ist.
+// Der Tag — die Ansicht, die morgens und abends offen ist.
 // Timer oben, dann Tages- und Wochensumme, Terminvorschläge aus dem Kalender,
 // und die Buchungen des Tages.
+//
+// Sie zeigt nicht zwingend heute: direkt unter der Überschrift stehen Pfeile,
+// mit denen man durch die Tage geht. Nachgetragen wird selten am selben Abend,
+// und der Kalender weiß auch für vorgestern noch, was war. Vorwärts geht es
+// ebenso, um Bekanntes vorzubereiten.
+// Der Tag steht im Modul und nicht im Zustand: er ist Anzeige, keine Buchung,
+// und soll beim nächsten App-Start nicht wieder auf einem alten Datum stehen.
 import { el, icon, hinweis } from "../core/dom.js";
 import * as store from "../core/store.js";
 import * as katalog from "../data/catalog.js";
+import * as router from "../core/router.js";
 import * as fmt from "../core/fmt.js";
-import { heute, wochenstart, alsDatumString, laufzeitMinuten, kalenderwoche, jetztUhrzeit, dauerAlsMinuten } from "../core/time.js";
+import { heute, wochenstart, alsDatumString, ausDatumString, laufzeitMinuten, kalenderwoche, jetztUhrzeit, dauerAlsMinuten } from "../core/time.js";
 import { eintragsliste } from "../ui/eintragsliste.js";
 import { erfassen } from "../ui/erfassen.js";
 import { abwesenheitEintragen } from "../ui/abwesenheit.js";
@@ -13,40 +21,77 @@ import { sheet, schliesse } from "../ui/sheet.js";
 import { projektpicker } from "../ui/projektpicker.js";
 import { saldoZeile, abschlussHinweis } from "../ui/konten.js";
 import { terminvorschlaege } from "../ui/terminvorschlaege.js";
-import { tagesblatt } from "../ui/tagesblatt.js";
 
 let uhrTakt = null;
+
+// null bedeutet "heute" -- so stimmt die Ansicht auch dann noch, wenn die App
+// über Mitternacht offen bleibt.
+let angezeigterTag = null;
+
+const gezeigterTag = () => angezeigterTag || heute();
+
+/** Wird beim Tippen auf den Reiter "Heute" aufgerufen: zurück auf den
+ *  heutigen Tag, egal wie weit geblättert wurde. */
+export function zurueckAufHeute() {
+  angezeigterTag = null;
+}
+
+function blaettern(tage) {
+  const d = ausDatumString(gezeigterTag());
+  d.setDate(d.getDate() + tage);
+  const neu = alsDatumString(d);
+  angezeigterTag = neu === heute() ? null : neu;
+  router.neuZeichnen();
+}
 
 export function zeichneHeute(wurzel) {
   clearInterval(uhrTakt);
   const z = store.zustand;
   const heuteStr = heute();
+  const tag = gezeigterTag();
+  const istHeute = tag === heuteStr;
 
-  const heutige = z.eintraege
-    .filter((e) => e.datum === heuteStr)
-    .sort((a, b) => (b.angelegt || "").localeCompare(a.angelegt || ""));
+  const desTages = z.eintraege
+    .filter((e) => e.datum === tag)
+    .sort((a, b) => (a.von || "zz").localeCompare(b.von || "zz"));
 
-  const wocheVon = alsDatumString(wochenstart(new Date()));
+  const wocheVon = alsDatumString(wochenstart(ausDatumString(tag)));
+  const wocheBis = alsDatumString(new Date(ausDatumString(wocheVon).getTime() + 6 * 86400000));
   const wocheMinuten = z.eintraege
-    .filter((e) => e.datum >= wocheVon && e.datum <= heuteStr)
+    .filter((e) => e.datum >= wocheVon && e.datum <= wocheBis)
     .reduce((s, e) => s + e.minuten, 0);
-  const summeHeute = heutige.reduce((s, e) => s + e.minuten, 0);
+  const summeTag = desTages.reduce((s, e) => s + e.minuten, 0);
 
-  const feiertag = store.feiertageDerZeitspanne(heuteStr, heuteStr).get(heuteStr);
+  const feiertag = store.feiertageDerZeitspanne(tag, tag).get(tag);
 
   wurzel.append(
     el("div", { class: "kopfzeile" }, [
-      el("h1", { text: "Heute" }),
+      el("h1", { text: istHeute ? "Heute" : ausDatumString(tag).toLocaleDateString("de-DE", { weekday: "long" }) }),
       el("p", { class: "kopf-neben",
-        text: fmt.datumLang(heuteStr) + (feiertag ? ` · ${feiertag.name}` : "") }),
+        text: fmt.datumLang(tag) + (feiertag ? ` · ${feiertag.name}` : "") }),
     ]),
-    timerKarte(z),
+    // Blättern direkt unter der Überschrift -- hier wird es gesucht.
+    el("div", { class: "monatswechsel ohne-linie" }, [
+      el("button", { class: "icon-knopf", "aria-label": "Vortag", onclick: () => blaettern(-1) }, [icon("pfeilLinks", 18)]),
+      el("button", {
+        class: "monatsname",
+        text: istHeute ? "Heute" : "Zurück auf heute",
+        onclick: () => { angezeigterTag = null; router.neuZeichnen(); },
+      }),
+      el("button", { class: "icon-knopf", "aria-label": "Folgetag", onclick: () => blaettern(1) }, [icon("pfeilRechts", 18)]),
+    ])
+  );
+
+  // Ein Timer gilt immer dem Jetzt -- an einem anderen Tag waere er sinnlos.
+  if (istHeute) wurzel.appendChild(timerKarte(z));
+
+  wurzel.append(
     el("div", { class: "kennzahlen" }, [
-      kennzahl("Heute", fmt.dauer(summeHeute), `${fmt.dezimal(summeHeute)} Std`),
-      kennzahl(`KW ${kalenderwoche(new Date())}`, fmt.dauer(wocheMinuten), `${fmt.dezimal(wocheMinuten)} Std`),
-      kennzahl(heutige.length === 1 ? "Eintrag" : "Einträge", String(heutige.length), "heute"),
+      kennzahl(istHeute ? "Heute" : fmt.datumKurz(tag), fmt.dauer(summeTag), `${fmt.dezimal(summeTag)} Std`),
+      kennzahl(`KW ${kalenderwoche(ausDatumString(tag))}`, fmt.dauer(wocheMinuten), `${fmt.dezimal(wocheMinuten)} Std`),
+      kennzahl(desTages.length === 1 ? "Eintrag" : "Einträge", String(desTages.length), istHeute ? "heute" : "an dem Tag"),
     ]),
-    schnellzugriff(heuteStr)
+    schnellzugriff(tag)
   );
 
   const saldo = saldoZeile();
@@ -57,22 +102,17 @@ export function zeichneHeute(wurzel) {
 
   const vorschlagsbereich = el("div");
   wurzel.appendChild(vorschlagsbereich);
-  terminvorschlaege(vorschlagsbereich, heuteStr);
+  terminvorschlaege(vorschlagsbereich, tag, { titel: istHeute ? "Aus dem Kalender" : "Termine an diesem Tag" });
 
   wurzel.append(
     el("div", { class: "abschnitt-titel" }, [
-      el("h2", { text: "Erfasst heute" }),
-      el("div", { class: "titel-knoepfe" }, [
-        // Von hier aus laesst sich durch die Tage blaettern -- Nachtragen
-        // passiert selten am selben Abend.
-        el("button", { class: "text-knopf", text: "Andere Tage", onclick: () => tagesblatt(heuteStr) }),
-        el("button", { class: "text-knopf", text: "Nachtragen", onclick: () => erfassen({ datum: heuteStr }) }),
-      ]),
+      el("h2", { text: istHeute ? "Erfasst heute" : "Erfasst an diesem Tag" }),
+      el("button", { class: "text-knopf", text: "Nachtragen", onclick: () => erfassen({ datum: tag }) }),
     ]),
-    eintragsliste(heutige, { leerText: "Heute noch nichts erfasst." })
+    eintragsliste(desTages, { leerText: istHeute ? "Heute noch nichts erfasst." : "An diesem Tag ist nichts erfasst." })
   );
 
-  if (z.timer) uhrTakt = setInterval(() => aktualisiereUhr(wurzel), 1000);
+  if (istHeute && z.timer) uhrTakt = setInterval(() => aktualisiereUhr(wurzel), 1000);
 }
 
 function kennzahl(label, wert, neben) {
