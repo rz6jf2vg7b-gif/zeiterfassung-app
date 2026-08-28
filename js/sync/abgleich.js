@@ -48,6 +48,15 @@ export async function abgleichen() {
     db.schreibeViele(db.STORE_EXTRAS, x.liste),
   ]);
 
+  // Das Kalender-Gedächtnis wandert mit. Es liegt in der Konfiguration, und
+  // die wird sonst nicht abgeglichen -- gelernt hätte dann jedes Gerät für
+  // sich, und auf dem iPad stünde bei denselben Terminen kein Vorschlag.
+  // Zusammengeführt wird als Vereinigung: eine gelernte Zuordnung geht nie
+  // verloren, bei gleichem Titel gilt die vom eigenen Gerät.
+  const zuordnungLokal = await repo.konfig("kalenderZuordnung", {});
+  const zuordnung = { ...(fern?.kalenderZuordnung || {}), ...zuordnungLokal };
+  await repo.setzeKonfig("kalenderZuordnung", zuordnung);
+
   await onedrive.speichern({
     format: FORMAT,
     geschriebenAm: new Date().toISOString(),
@@ -55,6 +64,7 @@ export async function abgleichen() {
     eintraege: e.liste,
     projekte: p.liste,
     extras: x.liste,
+    kalenderZuordnung: zuordnung,
   });
 
   // Projektlisten mitziehen. Sie liegen seit 25.08.2026 nicht mehr neben der

@@ -11,7 +11,7 @@ const GERUEST = [
   "./css/tokens.css", "./css/app.css",
   // Die Projektlisten stehen bewusst NICHT hier: sie werden nicht mehr
   // ausgeliefert, sondern aus OneDrive geholt und lokal gespeichert.
-  "./vendor/xlsx.full.min.js", "./vendor/jspdf.umd.min.js",
+  "./vendor/xlsx.style.min.js", "./vendor/jspdf.umd.min.js",
   "./vendor/jspdf.plugin.autotable.min.js",
   "./vendor/leaflet.js", "./vendor/leaflet.css",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-maskable-512.png",

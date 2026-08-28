@@ -62,6 +62,8 @@ button { cursor: pointer; border: none; background: none; padding: 0; }
   padding-bottom: var(--a2); border-bottom: var(--haar) solid var(--linie-tinte);
 }
 .abschnitt-titel h2 { margin: 0; color: var(--text); }
+/* Rechts im Abschnittstitel: welcher Lebensbereich gezeigt wird. */
+.abschnitt-neben { font-size: 11px; color: var(--text-3); white-space: nowrap; }
 /* Zwei Textknoepfe rechts im Abschnittstitel -- sie sollen nebeneinander
    stehen und nicht die Ueberschrift zusammenquetschen. */
 .titel-knoepfe { display: flex; align-items: center; gap: var(--a4); flex: 0 0 auto; }
@@ -627,28 +629,38 @@ textarea.feld { resize: vertical; min-height: 46px; line-height: 1.45; }
 
 /* ===== Diagramme ======================================================== */
 
-.diagramm-rahmen { margin: 0 0 var(--a5); }
-.diagramm-kopf { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: var(--a1); }
-.d-hoechst, .d-legende { font-size: 10.5px; font-weight: 600; letter-spacing: var(--sperrung); text-transform: uppercase; color: var(--text-3); }
-
-.diagramm { display: block; width: 100%; height: 132px; overflow: visible; }
-.d-achse { stroke: var(--linie-tinte); stroke-width: 1; vector-effect: non-scaling-stroke; }
-.d-soll { stroke: var(--text-3); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
-.d-saeule { fill: var(--text); opacity: .82; }
-.d-saeule.betont { opacity: 1; }
-
-.diagramm-spuren { display: flex; margin-top: var(--a1); }
-.d-spur { flex: 1 1 0; min-width: 0; text-align: center; font-size: 9.5px; color: var(--text-3); overflow: hidden; white-space: nowrap; }
-
-.anteilsbalken { display: flex; height: 12px; overflow: hidden; border: var(--haar) solid var(--linie-tinte); }
-.anteil { height: 100%; }
-.anteil + .anteil { border-left: var(--haar) solid var(--grund); }
-
-.anteil-legende { display: flex; flex-wrap: wrap; gap: var(--a1) var(--a4); margin-top: var(--a2); }
-.anteil-eintrag { display: flex; align-items: center; gap: var(--a1); font-size: 11.5px; min-width: 0; }
-.anteil-punkt { width: 8px; height: 8px; flex: none; border: var(--haar) solid var(--linie-stark); }
-.anteil-name { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px; }
-.anteil-wert { font-weight: 650; }
+/* Liegende Balken -- die einzige Diagrammform der App. Raster aus Name,
+   Spur und Wert, damit die Zahlen untereinander auf einer Kante stehen. */
+.balkenwerk { margin: 0 0 var(--a5); }
+.balken-zeile {
+  display: grid;
+  grid-template-columns: minmax(84px, 38%) 1fr auto;
+  align-items: center; gap: var(--a3);
+  padding: var(--a2) 0;
+  border-bottom: var(--haar) solid var(--linie);
+}
+/* Auf dem Telefon steht der Name in einer eigenen Zeile: nebeneinander blieben
+   von "Jour Fixe / Regeltermin" nur drei Wörter und ein Auslassungszeichen. */
+@media (max-width: 520px) {
+  .balken-zeile {
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "name name" "spur wert";
+    gap: var(--a1) var(--a3);
+  }
+  .balken-name { grid-area: name; }
+  .balken-spur { grid-area: spur; }
+  .balken-wert { grid-area: wert; }
+  .balken-titel { white-space: normal; }
+}
+.balken-zeile:last-of-type { border-bottom: 0; }
+.balken-name { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.balken-titel { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.balken-neben { font-size: 10.5px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.balken-spur { height: 8px; background: var(--flaeche-2); }
+.spur-fuellung { height: 100%; background: var(--text); }
+.spur-fuellung.gedaempft { background: var(--text-3); }
+.balken-wert { font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; min-width: 44px; text-align: right; }
+.balken-fuss { margin-top: var(--a2); font-size: 11px; color: var(--text-3); }
 
 .trennraum { height: var(--a10); border-bottom: 2px solid var(--linie-tinte); margin-bottom: var(--a6); }
 .saldoleiste { display: flex; flex-direction: column; }

@@ -15,7 +15,9 @@ export const zustand = {
   timer: null,
   zuletzt: [],
   kalender: { jahr: new Date().getFullYear(), monat: new Date().getMonth() },
-  auswertung: { zeitraum: "monat", bereich: null, gruppierung: "projekt" },
+  // bereich: null heisst "noch nicht gewaehlt" -- die Auswertung setzt beim
+  // ersten Zeichnen den Bereich mit den meisten Buchungen. Gemischt wird nie.
+  auswertung: { zeitraum: "monat", bereich: null, gruppierung: "projekt", mitEinzelnachweis: false },
 };
 
 export function abonnieren(fn) {

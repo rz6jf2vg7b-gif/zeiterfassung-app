@@ -235,6 +235,41 @@ export async function konfig(key, standard = null) {
 export const setzeKonfig = (key, value) => db.schreiben(db.STORE_KONFIG, { key, value });
 export const alleKonfig = () => db.alle(db.STORE_KONFIG);
 
+// ---------- Kalender-Gedächtnis ------------------------------------------
+// Dieselben Termine kommen Woche für Woche wieder: "Jour fixe TV.D.3",
+// "20-Wochengespräch", "JF UW MA Süd". Bisher wurde bei jedem einzelnen das
+// Projekt neu gesucht. Die App merkt sich jetzt, worauf ein Titel zuletzt
+// gebucht wurde, und schlägt es beim nächsten Mal vor -- gebucht wird weiter
+// erst auf Antippen, nichts geschieht von selbst.
+
+/** Vergleichsform des Termintitels. Ohne sie wären "Jour fixe TV.D.3" und
+ *  "Jour Fixe TV.D.3 " zwei verschiedene Termine. */
+const titelSchluessel = (titel) =>
+  String(titel || "").toLowerCase().replace(/\s+/g, " ").trim().slice(0, 120);
+
+export async function kalenderProjektMerken(titel, projektId) {
+  const k = titelSchluessel(titel);
+  if (!k || !projektId) return;
+  const alle = await konfig("kalenderZuordnung", {});
+  alle[k] = projektId;
+  await setzeKonfig("kalenderZuordnung", alle);
+}
+
+export async function kalenderProjektVorschlag(titel) {
+  const k = titelSchluessel(titel);
+  if (!k) return null;
+  const alle = await konfig("kalenderZuordnung", {});
+  return alle[k] || null;
+}
+
+export async function kalenderZuordnungVergessen(titel) {
+  const k = titelSchluessel(titel);
+  const alle = await konfig("kalenderZuordnung", {});
+  if (!(k in alle)) return;
+  delete alle[k];
+  await setzeKonfig("kalenderZuordnung", alle);
+}
+
 /** Zuletzt gebuchte Projekte — sie stehen bei der Erfassung ganz oben.
  *  Das spart in der Praxis die meisten Tipps: man bucht Tag für Tag
  *  auf dieselben zwei, drei Baustellen. */

@@ -8,6 +8,8 @@ import * as store from "../core/store.js";
 import * as fmt from "../core/fmt.js";
 import { sheet, schliesse } from "./sheet.js";
 import { projektpicker } from "./projektpicker.js";
+import * as repo from "../data/repo.js";
+import * as katalog from "../data/catalog.js";
 import * as microsoft from "../sync/microsoft.js";
 import * as outlook from "../sync/outlook.js";
 
@@ -57,26 +59,34 @@ export async function terminvorschlaege(wurzel, datum, { titel = "Aus dem Kalend
         r.neuZeichnen();
       } }),
     ]),
-    el("div", { class: "karten" }, offen.map((t) => zeile(t, datum, nachBuchung)))
+    el("div", { class: "karten" },
+      // Gemerkte Zuordnungen vorab holen: im Aufbau der Zeile ginge nur ein
+      // Versprechen, und die Zeile stuende dann ohne den Hinweis da.
+      await Promise.all(offen.map(async (t) => {
+        const gemerkt = katalog.projekt(await repo.kalenderProjektVorschlag(t.titel));
+        return zeile(t, datum, nachBuchung, gemerkt);
+      })))
   );
 }
 
-function zeile(termin, datum, nachBuchung) {
-  return el("button", { class: "karte eintrag", onclick: () => buchen(termin, datum, nachBuchung) }, [
+function zeile(termin, datum, nachBuchung, gemerkt) {
+  return el("button", { class: "karte eintrag", onclick: () => buchen(termin, datum, nachBuchung, gemerkt) }, [
     el("span", { class: "eintrag-marke", text: termin.von }),
     el("div", { class: "eintrag-text" }, [
       el("div", { class: "eintrag-name", text: termin.titel }),
       el("div", { class: "eintrag-meta",
-        text: [`${termin.von}–${termin.bis}`, termin.ort].filter(Boolean).join(" · ") }),
+        text: gemerkt
+          ? `→ ${fmt.projektKurz(gemerkt)}`
+          : [`${termin.von}–${termin.bis}`, termin.ort].filter(Boolean).join(" · ") }),
     ]),
     el("div", { class: "eintrag-dauer" }, [
       el("span", { class: "dauer-wert", text: fmt.dauer(termin.minuten) }),
-      el("span", { class: "dauer-dezimal", text: "buchen" }),
+      el("span", { class: "dauer-dezimal", text: gemerkt ? "bestätigen" : "buchen" }),
     ]),
   ]);
 }
 
-function buchen(termin, datum, nachBuchung = null) {
+function buchen(termin, datum, nachBuchung = null, gemerkt = null) {
   const koerper = el("div");
   sheet({ titel: "Termin buchen auf …", inhalt: koerper });
 
@@ -89,23 +99,37 @@ function buchen(termin, datum, nachBuchung = null) {
     ]),
   ]));
 
+  const eintragen = async (p) => {
+    await store.eintragAnlegen({
+      projektId: p.id, bereich: p.bereich, datum,
+      minuten: termin.minuten, von: termin.von, bis: termin.bis, pause: 0,
+      notiz: termin.titel, quelle: "kalender",
+      abrechenbar: p.sammelposten ? false : store.zustand.einstellungen.abrechenbarVorgabe !== false,
+      kalenderId: termin.kalenderId,
+    });
+    // Erst nach dem Buchen merken -- ein abgebrochener Dialog soll die
+    // Zuordnung nicht verändern.
+    await repo.kalenderProjektMerken(termin.titel, p.id);
+    schliesse();
+    hinweis(`${fmt.dauer(termin.minuten)} auf ${fmt.projektKurz(p)} gebucht.`, "gut");
+    if (nachBuchung) nachBuchung();
+  };
+
+  // Bekannter Titel: das gemerkte Projekt steht oben, ein Tipper genügt.
+  // Die Suche bleibt darunter -- ein Vorschlag darf nie ein Zwang sein.
+  if (gemerkt) {
+    koerper.appendChild(el("div", { class: "karte block" }, [
+      el("p", { class: "block-neben", text: "Zuletzt gebucht auf" }),
+      el("button", { class: "knopf haupt", text: fmt.projektKurz(gemerkt), onclick: () => eintragen(gemerkt) }),
+      el("button", { class: "knopf flach", text: "Zuordnung vergessen", onclick: async (ev) => {
+        await repo.kalenderZuordnungVergessen(termin.titel);
+        ev.currentTarget.closest(".karte").remove();
+        hinweis("Zuordnung entfernt.", "info");
+      } }),
+    ]));
+  }
+
   const auswahl = el("div");
   koerper.appendChild(auswahl);
-  projektpicker(auswahl, {
-    beiWahl: async (p) => {
-      await store.eintragAnlegen({
-        projektId: p.id, bereich: p.bereich, datum,
-        minuten: termin.minuten, von: termin.von, bis: termin.bis, pause: 0,
-        notiz: termin.titel, quelle: "kalender",
-        abrechenbar: p.sammelposten ? false : store.zustand.einstellungen.abrechenbarVorgabe !== false,
-        kalenderId: termin.kalenderId,
-      });
-      schliesse();
-      hinweis(`${fmt.dauer(termin.minuten)} auf ${fmt.projektKurz(p)} gebucht.`, "gut");
-      // Aus dem Tagesblatt heraus: denselben Tag wieder aufschlagen, damit
-      // sich mehrere Termine hintereinander buchen lassen, ohne jedes Mal
-      // neu zu oeffnen.
-      if (nachBuchung) nachBuchung();
-    },
-  });
+  projektpicker(auswahl, { beiWahl: eintragen });
 }

@@ -12,9 +12,9 @@ import { exportiereXlsx } from "../export/xlsx.js";
 import { exportierePdf } from "../export/pdf.js";
 import { kontenBlock } from "../ui/konten.js";
 import { geschaeftsjahr, voriges } from "../core/geschaeftsjahr.js";
-import { kontoBereiche, bereichWerte, sollMinuten } from "../core/konten.js";
-import { saeulen, anteilsbalken } from "../ui/diagramm.js";
-import { heute, wochenstart, ausDatumString, alsDatumString, kalenderwoche } from "../core/time.js";
+import { kontoBereiche, bereichWerte } from "../core/konten.js";
+import { liegendeBalken } from "../ui/diagramm.js";
+import { heute, wochenstart, alsDatumString } from "../core/time.js";
 
 const ZEITRAEUME = [
   { id: "woche", label: "Woche" },
@@ -57,13 +57,24 @@ export function zeitraumGrenzen(id) {
   return { von: "0000-01-01", bis: "9999-12-31", titel: "Gesamter Zeitraum" };
 }
 
+/** Welcher Lebensbereich zuerst? Der mit den meisten Buchungen im Zeitraum --
+ *  das ist im Alltag fast immer der gemeinte. Ohne Buchungen der erste, für
+ *  den ein Konto geführt wird. */
+function vorgabeBereich(eintraege) {
+  const zaehler = new Map();
+  for (const e of eintraege) zaehler.set(e.bereich, (zaehler.get(e.bereich) || 0) + 1);
+  const beste = [...zaehler.entries()].sort((x, y) => y[1] - x[1])[0];
+  return beste ? beste[0] : (kontoBereiche(einstellungenLesen())[0] || "mvv");
+}
+
 export function zeichneAuswertung(wurzel) {
   const z = store.zustand;
   const a = z.auswertung;
   const { von, bis, titel } = zeitraumGrenzen(a.zeitraum);
 
   const imZeitraum = z.eintraege.filter((e) => e.datum >= von && e.datum <= bis);
-  const gefiltert = a.bereich ? imZeitraum.filter((e) => e.bereich === a.bereich) : imZeitraum;
+  if (!a.bereich) a.bereich = vorgabeBereich(imZeitraum);
+  const gefiltert = imZeitraum.filter((e) => e.bereich === a.bereich);
 
   const buchungen = gefiltert.filter((e) => e.art !== "abwesenheit");
   const abwesend = gefiltert.filter((e) => e.art === "abwesenheit");
@@ -91,8 +102,10 @@ export function zeichneAuswertung(wurzel) {
     return;
   }
 
-  // append() macht aus einem Nullwert den sichtbaren Text "null" — und
-  // bereichsDiagramm liefert genau dann null, wenn nur ein Bereich Stunden hat.
+  // Ein Lebensbereich, nie gemischt. MVV-Stunden und kreativLABOR42-Stunden
+  // in einer Summe zu zeigen führt in die Irre -- sie gehören verschiedenen
+  // Auftraggebern und werden getrennt abgerechnet (Steffen, 26.08.2026).
+  // Die Bereichsspalten sind zugleich die Umschaltung; "Alle" gibt es nicht mehr.
   const anhaengen = (...teile) => wurzel.append(...teile.filter(Boolean));
 
   anhaengen(
@@ -105,39 +118,64 @@ export function zeichneAuswertung(wurzel) {
     )),
     bereichsspalten(imZeitraum, a.bereich),
     summenblock(summe, abrechenbar, buchungen.length, abwesend),
-    verlaufsDiagramm(buchungen, von, bis, a.bereich),
-    a.bereich ? null : bereichsDiagramm(buchungen),
     el("div", { class: "abschnitt-titel" }, [
       el("h2", { text: "Aufschlüsselung" }),
-      el("button", { class: "text-knopf",
-        text: a.bereich ? `Filter: ${katalog.bereichKurz(a.bereich)} ✕` : "Alle Bereiche",
-        onclick: () => { a.bereich = null; router.neuZeichnen(); } }),
+      el("span", { class: "abschnitt-neben", text: katalog.bereichLabel(a.bereich) }),
     ]),
-    el("div", { class: "segment klein" }, [["projekt", "Projekt"], ["bereich", "Bereich"], ["monat", "Monat"], ["abrechenbar", "Abrechenbarkeit"]].map(([id, label]) =>
+    el("div", { class: "segment klein" }, [["projekt", "Projekt"], ["monat", "Monat"], ["abrechenbar", "Abrechenbarkeit"]].map(([id, label]) =>
       el("button", {
         class: "segment-knopf" + (a.gruppierung === id ? " aktiv" : ""),
         text: label,
         onclick: () => { a.gruppierung = id; router.neuZeichnen(); },
       })
     )),
-    gruppenListe(buchungen, a.gruppierung, summe),
-    el("div", { class: "abschnitt-titel" }, [el("h2", { text: "Export" })]),
-    el("div", { class: "knopfzeile zwei" }, [
-      el("button", { class: "knopf", text: "Excel (.xlsx)", onclick: () => {
-        if (!gefiltert.length) return hinweis("Nichts zu exportieren.", "warnung");
-        exportiereXlsx(gefiltert, { titel, von, bis });
-      } }),
-      el("button", { class: "knopf flach", text: "PDF", onclick: () => {
-        if (!buchungen.length) return hinweis("Nichts zu exportieren.", "warnung");
-        exportierePdf(buchungen, { titel, von, bis });
-      } }),
-    ]),
+    liegendeBalken(gruppen(buchungen, a.gruppierung), { hoechstens: a.gruppierung === "monat" ? 24 : 10 }),
+    exportblock(buchungen, a, { von, bis, titel }),
     el("div", { class: "abschnitt-titel" }, [el("h2", { text: `Einzelbuchungen (${gefiltert.length})` })]),
     eintragsliste(
       gefiltert.slice().sort((x, y) => y.datum.localeCompare(x.datum)),
       { mitDatum: true, leerText: "Keine Einträge in diesem Zeitraum." }
     )
   );
+}
+
+/** Ausgabe je Lebensbereich, Standard ohne Tagesbuchungen. Der Einzelnachweis
+ *  wird nur angehängt, wenn ausdrücklich gewünscht -- im Regelfall liest ihn
+ *  niemand, er macht aus einer Seite drei. */
+function exportblock(buchungen, a, zeitraum) {
+  const schalter = el("input", { type: "checkbox" });
+  schalter.checked = !!a.mitEinzelnachweis;
+  schalter.addEventListener("change", () => { a.mitEinzelnachweis = schalter.checked; });
+
+  const optionen = () => ({
+    ...zeitraum,
+    bereich: a.bereich,
+    mitEinzelnachweis: schalter.checked,
+  });
+
+  return el("div", {}, [
+    el("div", { class: "abschnitt-titel" }, [
+      el("h2", { text: "Export" }),
+      el("span", { class: "abschnitt-neben", text: katalog.bereichLabel(a.bereich) }),
+    ]),
+    el("label", { class: "schalterzeile" }, [
+      el("span", { class: "beschriftung" }, [
+        "Einzelnachweis anhängen",
+        el("small", { text: "jede Tagesbuchung mit Zeit und Notiz" }),
+      ]),
+      el("span", { class: "haken" }, [schalter]),
+    ]),
+    el("div", { class: "knopfzeile zwei" }, [
+      el("button", { class: "knopf", text: "Excel (.xlsx)", onclick: () => {
+        if (!buchungen.length) return hinweis("Nichts zu exportieren.", "warnung");
+        exportiereXlsx(buchungen, optionen());
+      } }),
+      el("button", { class: "knopf flach", text: "PDF", onclick: () => {
+        if (!buchungen.length) return hinweis("Nichts zu exportieren.", "warnung");
+        exportierePdf(buchungen, optionen());
+      } }),
+    ]),
+  ]);
 }
 
 /** Die Lebensbereiche nebeneinander — der Blick, der als erstes gebraucht wird.
@@ -154,8 +192,9 @@ function bereichsspalten(eintraege, aktiverBereich) {
     spalten.appendChild(el("button", {
       class: "bereichsspalte" + (minuten ? "" : " leer-bereich"),
       style: aktiverBereich === b.id ? { outline: "2px solid var(--linie-tinte)", outlineOffset: "-2px" } : {},
+      // Immer setzen, nie abwaehlen -- ohne Bereich gibt es keine Auswertung.
       onclick: () => {
-        store.zustand.auswertung.bereich = aktiverBereich === b.id ? null : b.id;
+        store.zustand.auswertung.bereich = b.id;
         router.neuZeichnen();
       },
     }, [
@@ -183,118 +222,33 @@ function summenblock(minuten, abrechenbarMinuten, anzahl, abwesend) {
   ]);
 }
 
-function gruppenListe(eintraege, art, gesamt) {
-  const gruppen = new Map();
+/** Fasst die Buchungen zusammen und liefert Zeilen für die Balken.
+ *  "Bereich" ist als Gruppierung entfallen -- es ist immer genau einer. */
+function gruppen(eintraege, art) {
+  const gefunden = new Map();
   for (const e of eintraege) {
-    let schluessel, label;
-    if (art === "projekt") {
-      const p = katalog.projekt(e.projektId);
-      schluessel = e.projektId || "ohne";
-      label = p ? fmt.projektZeile(p) : katalog.fehlendesProjektText(e.projektId);
-    } else if (art === "bereich") {
-      schluessel = e.bereich;
-      label = katalog.bereichLabel(e.bereich);
-    } else if (art === "abrechenbar") {
+    let schluessel, label, neben = null;
+    if (art === "abrechenbar") {
       schluessel = e.abrechenbar === false ? "nein" : "ja";
       label = e.abrechenbar === false ? "Nicht abrechenbar" : "Abrechenbar";
-    } else {
+    } else if (art === "monat") {
       schluessel = e.datum.slice(0, 7);
       const [j, m] = schluessel.split("-");
       label = `${fmt.MONATE[+m - 1]} ${j}`;
+    } else {
+      const p = katalog.projekt(e.projektId);
+      schluessel = e.projektId || "ohne";
+      label = p ? p.name : katalog.fehlendesProjektText(e.projektId);
+      neben = p ? [p.nr, p.auftrag && `Auftrag ${p.auftrag}`].filter(Boolean).join(" · ") : null;
     }
-    const g = gruppen.get(schluessel) || { label, minuten: 0, anzahl: 0 };
-    g.minuten += e.minuten; g.anzahl += 1;
-    gruppen.set(schluessel, g);
+    const g = gefunden.get(schluessel) || { label, neben, wert: 0, anzahl: 0 };
+    g.wert += e.minuten; g.anzahl += 1;
+    gefunden.set(schluessel, g);
   }
 
-  const sortiert = [...gruppen.values()].sort((a, b) =>
-    art === "monat" ? a.label.localeCompare(b.label) : b.minuten - a.minuten);
-
-  if (!sortiert.length) return el("div", { class: "leer" }, [el("p", { text: "Keine Daten im Zeitraum." })]);
-
-  return el("div", { class: "karten" }, sortiert.map((g) => {
-    const anteil = gesamt ? Math.round((g.minuten / gesamt) * 100) : 0;
-    const balken = el("div", { class: "balken" }, [el("div", { class: "balken-fuellung" })]);
-    balken.firstChild.style.width = `${Math.max(1, anteil)}%`;
-    return el("div", { class: "karte gruppe" }, [
-      el("div", { class: "gruppe-kopf" }, [
-        el("span", { class: "gruppe-label", text: g.label }),
-        el("span", { class: "gruppe-wert", text: fmt.dauer(g.minuten) }),
-      ]),
-      balken,
-      el("div", { class: "gruppe-fuss",
-        text: `${fmt.dezimal(g.minuten)} Std · ${anteil} % · ${fmt.anzahl(g.anzahl, "Buchung", "Buchungen")}` }),
-    ]);
-  }));
+  const liste = [...gefunden.values()];
+  // Monate chronologisch, alles andere nach Gewicht
+  return art === "monat" ? liste.sort((x, y) => x.label.localeCompare(y.label)) : liste;
 }
 
 
-// ---- Grafik --------------------------------------------------------------
-
-/** Säulendiagramm über den Zeitraum. Die Zusammenfassung richtet sich nach der
- *  Länge: bis sechs Wochen je Tag, bis ein halbes Jahr je Kalenderwoche,
- *  darüber je Monat — sonst stehen entweder drei Säulen oder dreihundert. */
-function verlaufsDiagramm(eintraege, von, bis, bereich) {
-  if (!eintraege.length) return null;
-
-  const ersterTag = eintraege.reduce((a, e) => (e.datum < a ? e.datum : a), eintraege[0].datum);
-  const start = von === "0000-01-01" ? ersterTag : von;
-  const tage = Math.round((ausDatumString(bis) - ausDatumString(start)) / 86400000) + 1;
-  const art = tage <= 45 ? "tag" : tage <= 200 ? "woche" : "monat";
-
-  const koerbe = new Map();
-  const beschriften = (datum) => {
-    const d = ausDatumString(datum);
-    if (art === "tag") return { schluessel: datum, label: String(d.getDate()) };
-    if (art === "woche") {
-      const kw = kalenderwoche(d);
-      return { schluessel: `${datum.slice(0, 4)}-W${String(kw).padStart(2, "0")}`, label: String(kw) };
-    }
-    return { schluessel: datum.slice(0, 7), label: fmt.MONATE[d.getMonth()].slice(0, 3) };
-  };
-
-  // Auch leere Abschnitte zeigen -- eine Lücke ist eine Aussage
-  if (art === "tag") {
-    for (let d = ausDatumString(start); alsDatumString(d) <= bis; d.setDate(d.getDate() + 1)) {
-      const { schluessel, label } = beschriften(alsDatumString(d));
-      koerbe.set(schluessel, { label, wert: 0, datum: alsDatumString(d) });
-    }
-  }
-  for (const e of eintraege) {
-    const { schluessel, label } = beschriften(e.datum);
-    const k = koerbe.get(schluessel) || { label, wert: 0, datum: e.datum };
-    k.wert += e.minuten;
-    koerbe.set(schluessel, k);
-  }
-
-  const daten = [...koerbe.values()].sort((a, b) => a.datum.localeCompare(b.datum));
-
-  // Soll-Linie nur bei Tagesansicht und nur, wenn ein Bereich gefiltert ist —
-  // sonst vergleicht man Stunden mehrerer Bereiche mit einem Tagessoll.
-  let soll = null;
-  if (art === "tag" && bereich) {
-    const werte = bereichWerte(store.zustand.einstellungen, bereich);
-    soll = Math.round(werte.sollStundenTag * 60);
-  }
-
-  return el("div", {}, [
-    el("div", { class: "abschnitt-titel" }, [
-      el("h2", { text: art === "tag" ? "Verlauf je Tag" : art === "woche" ? "Verlauf je Kalenderwoche" : "Verlauf je Monat" }),
-    ]),
-    saeulen(daten, { sollMinuten: soll }),
-  ]);
-}
-
-/** Anteil der Lebensbereiche als ein Balken. */
-function bereichsDiagramm(eintraege) {
-  const proBereich = new Map();
-  for (const e of eintraege) {
-    proBereich.set(e.bereich, (proBereich.get(e.bereich) || 0) + e.minuten);
-  }
-  if (proBereich.size < 2) return null;
-  const gruppen = [...proBereich.entries()].map(([id, wert]) => ({ label: katalog.bereichLabel(id), wert }));
-  return el("div", {}, [
-    el("div", { class: "abschnitt-titel" }, [el("h2", { text: "Anteil der Bereiche" })]),
-    anteilsbalken(gruppen),
-  ]);
-}
