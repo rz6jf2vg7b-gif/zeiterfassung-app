@@ -3,7 +3,7 @@
 // dem iPhone teils gar nicht an, weil immer die alte ausgeliefert wurde.
 // Jetzt: Netz zuerst, Cache als Rueckfall. Offline funktioniert weiter,
 // aber ein Update ist beim naechsten Start da.
-const VERSION = "v15-2026-08-26";
+const VERSION = "v16-2026-08-28";
 const CACHE = `stunden-${VERSION}`;
 
 const GERUEST = [
